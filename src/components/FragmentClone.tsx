@@ -453,7 +453,7 @@ const FragmentClone: React.FC = () => {
                 <p className="text-white font-medium">To do so, simply:</p>
                 <ul className="space-y-2 text-[#8794a1]">
                   <li>• Get <a href="https://tonkeeper.com/" className="text-[#4db2ff] hover:underline">Tonkeeper</a>, open it and create a <strong className="text-white">wallet</strong>.</li>
-                  <li>• Deposit funds in your <strong className="text-white">wallet</strong> from a <a href="https://ton.org/buy-toncoin" className="text-[#4db2ff] hover:underline">supported exchange</a> or with <a href="https://wallet.t.me/" className="text-[#4db2ff] hover:underline">@wallet</a> on Telegram.</li>
+                  <li>• Deposit funds in your <strong className="text-white">wallet</strong> from a <a href="https://ton.org/buy-toncoin" className=\"text-[#4db2ff] hover:underline">supported exchange</a> or with <a href=\"https://wallet.t.me/" className=\"text-[#4db2ff] hover:underline">@wallet</a> on Telegram.</li>
                   <li>• Use <strong className="text-white">Tonkeeper</strong> to log in on Fragment and return to this page.</li>
                   <li>• Tap the button below to accept the offer</li>
                 </ul>
