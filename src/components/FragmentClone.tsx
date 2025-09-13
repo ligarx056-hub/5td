@@ -412,7 +412,7 @@ const FragmentClone: React.FC = () => {
               <div className="space-y-2">
                 <p><strong>To do so, simply:</strong></p>
                 <p>• Get <a href="https://tonkeeper.com/" className="text-[#4db2ff]">Tonkeeper</a>, open it and create a wallet.</p>
-                <p>• Deposit funds in your wallet from a <a href="https://ton.org/buy-toncoin" className="text-[#4db2ff]">supported exchange</a> or with <a href="https://wallet.t.me/" className="text-[#4db2ff]">@wallet</a> on Telegram.</p>
+                <p>• Deposit funds in your wallet from a <a href="https://ton.org/buy-toncoin" className="text-[#4db2ff]">supported exchange</a> or with <a href="https://wallet.t.me/" className=\"text-[#4db2ff]">@wallet</a> on Telegram.</p>
                 <p>• Use <strong>Tonkeeper</strong> to log in on Fragment and return to this page.</p>
                 <p>• Tap the button below to accept the offer</p>
               </div>
